@@ -331,17 +331,37 @@
 
 <!-- Auth screen (multi-user) -->
 <div id="authScreen" class="auth-screen hidden">
-  <div class="auth-card">
-    <div class="auth-brand"><div class="m">✳</div><div><b>Thumbnail Studio</b><span>AI thumbnails with your face &amp; taste</span></div></div>
-    <h2 id="authTitle">Welcome back</h2>
-    <p class="sub">Sign in to your studio. Your faces, styles and thumbnails stay private to your account.</p>
-    <form id="authForm">
-      <div><label>Email</label><input id="authEmail" type="email" required placeholder="you@email.com" autocomplete="email" /></div>
-      <div><label>Password</label><input id="authPass" type="password" required minlength="6" placeholder="••••••••" autocomplete="current-password" /></div>
-      <div class="auth-err" id="authErr"></div>
-      <button id="authSubmit" type="submit" class="primary-btn">Log in</button>
-    </form>
-    <div class="auth-foot"><span id="authToggleText">New here?</span> <a id="authToggle">Create one</a></div>
+  <div class="auth-split">
+    <div class="auth-hero">
+      <div class="auth-hero-inner">
+        <div class="auth-brand"><div class="m">✳</div><div><b>Thumbnail Studio</b><span>AI thumbnails, your way</span></div></div>
+        <h1 class="auth-h1">Thumbnails that <em>look like you.</em></h1>
+        <p class="auth-lead">Paste a transcript, get scroll-stopping YouTube thumbnails with your real face and your channel&rsquo;s style &mdash; in seconds.</p>
+        <ul class="auth-feats">
+          <li><span class="af-ic">✦</span> Your face, kept consistent every time</li>
+          <li><span class="af-ic">❖</span> Recreate any winning thumbnail&rsquo;s style</li>
+          <li><span class="af-ic">⚡</span> Transcript &rarr; concepts &rarr; finished thumbnails</li>
+        </ul>
+      </div>
+      <div class="auth-deco" aria-hidden="true">
+        <div class="ad-card ad1"><div class="ad-face"></div><div class="ad-txt">150 CLIENTS</div></div>
+        <div class="ad-card ad2"><div class="ad-face alt"></div><div class="ad-txt light">+$18K/MO</div></div>
+        <div class="ad-card ad3"><div class="ad-face"></div><div class="ad-txt">NEVER BURN OUT</div></div>
+      </div>
+    </div>
+    <div class="auth-formwrap">
+      <div class="auth-card">
+        <h2 id="authTitle">Welcome back</h2>
+        <p class="auth-sub">Your faces, styles &amp; thumbnails stay private to your account.</p>
+        <form id="authForm">
+          <div class="afield"><label>Email</label><input id="authEmail" type="email" required placeholder="you@email.com" autocomplete="email" /></div>
+          <div class="afield"><label>Password</label><input id="authPass" type="password" required minlength="6" placeholder="••••••••" autocomplete="current-password" /></div>
+          <div class="auth-err" id="authErr"></div>
+          <button id="authSubmit" type="submit" class="primary-btn">Log in</button>
+        </form>
+        <div class="auth-foot"><span id="authToggleText">New here?</span> <a id="authToggle">Create one</a></div>
+      </div>
+    </div>
   </div>
 </div>
 
