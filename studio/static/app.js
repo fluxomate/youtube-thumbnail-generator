@@ -654,3 +654,82 @@ function trim(s, n) { s = s || ''; return s.length > n ? s.slice(0, n).trimEnd()
 loadStatus();
 loadProjects();
 setStep(1);
+
+/* ===== Onboarding ===== */
+function _initOnboarding() {
+  const onbFaces = [];
+  let step = 1;
+  const overlay = document.getElementById('onboarding');
+  if (!overlay) return;
+  const stepEls = [...overlay.querySelectorAll('.onb-step')];
+  const dots = [...overlay.querySelectorAll('.onb-steps i')];
+  const back = document.getElementById('onbBack');
+  const next = document.getElementById('onbNext');
+
+  function render() {
+    stepEls.forEach(e => e.classList.toggle('hidden', +e.dataset.onb !== step));
+    dots.forEach((d, i) => d.classList.toggle('on', i < step));
+    back.classList.toggle('hidden', step === 1);
+    next.textContent = step === 3 ? 'Finish & enter studio' : 'Continue';
+  }
+  function show() { overlay.classList.remove('hidden'); step = 1; render(); }
+  function hide() { overlay.classList.add('hidden'); }
+
+  // face upload preview
+  const faceFile = document.getElementById('onbFaceFile');
+  document.getElementById('onbFaceDrop').onclick = () => faceFile.click();
+  faceFile.onchange = () => {
+    [...faceFile.files].filter(f => f.type.startsWith('image/')).forEach(f => onbFaces.push(f));
+    faceFile.value = '';
+    const strip = document.getElementById('onbFaceStrip');
+    strip.innerHTML = '';
+    onbFaces.forEach((f, i) => {
+      const d = document.createElement('div');
+      d.className = 'inspo-thumb';
+      d.innerHTML = `<img src="${URL.createObjectURL(f)}" /><button type="button" class="ix">✕</button>`;
+      d.querySelector('.ix').onclick = () => { onbFaces.splice(i, 1); faceFile.onchange(); };
+      strip.appendChild(d);
+    });
+  };
+
+  document.getElementById('onbSkip').onclick = hide;
+  back.onclick = () => { if (step > 1) { step--; render(); } };
+
+  next.onclick = async () => {
+    if (step < 3) { step++; render(); return; }
+    // Finish — save everything
+    next.disabled = true; next.textContent = 'Setting up…';
+    try {
+      const fal = document.getElementById('onbFal').value.trim();
+      const ant = document.getElementById('onbAnt').value.trim();
+      if (fal || ant) {
+        const body = {};
+        if (fal) body.FAL_KEY = fal;
+        if (ant) body.ANTHROPIC_API_KEY = ant;
+        await api('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      }
+      const name = document.getElementById('onbName').value.trim();
+      const niche = document.getElementById('onbNiche').value.trim();
+      const persona = document.getElementById('onbPersona').value.trim();
+      const color = document.getElementById('onbColor').value.trim() || '#FF7300';
+      if (niche || persona || name) {
+        const text = `# Style profile\n\n## Channel / niche\n${name ? name + ' — ' : ''}${niche}\n\n## Persona on camera\n${persona}\n\n## Visual signature\n- Colors: ${color} (brand)\n- Fonts / text style: bold condensed sans, <=4 words\n- Composition habits: face on one third, hook text on another\n- Background style: clean designed background, cinematic premium\n\n## Do's\n- Strong, real facial expression with eye contact\n- One concrete number or curiosity gap\n\n## Don'ts\n- No clutter or more than ~4 words of text\n- No weak / neutral expression\n`;
+        await api('/api/memory/style', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
+      }
+      for (const f of onbFaces) {
+        const fd = new FormData();
+        fd.append('file', f); fd.append('kind', 'faces'); fd.append('note', 'onboarding');
+        await fetch('/api/memory/upload', { method: 'POST', body: fd });
+      }
+      toast('You\'re all set! 🧡', 'ok');
+      setTimeout(() => location.reload(), 700);
+    } catch (e) {
+      toast(e.message || 'Setup failed', 'err');
+      next.disabled = false; next.textContent = 'Finish & enter studio';
+    }
+  };
+
+  // show onboarding on a fresh / blank workspace
+  api('/api/status').then(s => { if (s.needs_onboarding) show(); }).catch(() => {});
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _initOnboarding); else _initOnboarding();

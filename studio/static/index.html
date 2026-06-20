@@ -282,5 +282,50 @@
 </div>
 
 <script src="/static/app.js"></script>
+<!-- Onboarding -->
+<div id="onboarding" class="onb hidden">
+  <div class="onb-card">
+    <div class="onb-head">
+      <div class="onb-logo">✳</div>
+      <div><h2 id="onbTitle">Welcome to Thumbnail Studio</h2><p>Set up your channel in 3 quick steps.</p></div>
+    </div>
+    <div class="onb-steps"><i class="on"></i><i></i><i></i></div>
+
+    <div class="onb-step" data-onb="1">
+      <h3>1 &middot; Connect your keys</h3>
+      <p class="onb-hint">Used only to generate — stored on this instance, never shared.</p>
+      <div class="field"><label>fal.ai key <span class="opt">— images &amp; upscaling</span></label>
+        <input id="onbFal" type="password" placeholder="paste your fal key" /><small>fal.ai/dashboard/keys</small></div>
+      <div class="field"><label>Anthropic key <span class="opt">— writes the concepts</span></label>
+        <input id="onbAnt" type="password" placeholder="sk-ant-…" /><small>console.anthropic.com</small></div>
+    </div>
+
+    <div class="onb-step hidden" data-onb="2">
+      <h3>2 &middot; About your channel</h3>
+      <p class="onb-hint">This shapes every concept. You can refine it anytime in Memory.</p>
+      <div class="field"><label>Channel name</label><input id="onbName" type="text" placeholder="e.g. Your Channel" /></div>
+      <div class="field"><label>Niche &amp; audience</label><textarea id="onbNiche" rows="2" placeholder="e.g. AI automation for agency owners"></textarea></div>
+      <div class="field"><label>On-camera persona</label><textarea id="onbPersona" rows="2" placeholder="e.g. young man, dark beard, energetic, often in a bright hoodie"></textarea></div>
+      <div class="field"><label>Brand colour <span class="opt">(hex)</span></label><input id="onbColor" type="text" placeholder="#FF7300" /></div>
+    </div>
+
+    <div class="onb-step hidden" data-onb="3">
+      <h3>3 &middot; Add your face</h3>
+      <p class="onb-hint">3–5 clear photos (front + 3/4 angle) keep the generated face looking like you.</p>
+      <label class="onb-drop" id="onbFaceDrop"><span>+ Upload face photos</span>
+        <input id="onbFaceFile" type="file" accept="image/*" multiple hidden /></label>
+      <div id="onbFaceStrip" class="inspo-strip"></div>
+    </div>
+
+    <div class="onb-foot">
+      <button id="onbSkip" class="ghost-btn">Skip for now</button>
+      <div class="onb-foot-r">
+        <button id="onbBack" class="ghost-btn hidden">Back</button>
+        <button id="onbNext" class="primary-btn">Continue</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

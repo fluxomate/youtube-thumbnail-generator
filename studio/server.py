@@ -30,7 +30,74 @@ from flask import Flask, request, jsonify, send_file, Response, abort
 STUDIO_DIR = pathlib.Path(__file__).resolve().parent
 PROJECT_ROOT = STUDIO_DIR.parent
 SKILL_DIR = PROJECT_ROOT / ".claude" / "skills" / "youtube-thumbnail-generator"
-MEMORY = SKILL_DIR / "memory"
+SKILL_MEMORY = SKILL_DIR / "memory"
+_MEM_OVERRIDE = os.environ.get("STUDIO_MEMORY")
+MEMORY = pathlib.Path(_MEM_OVERRIDE).resolve() if _MEM_OVERRIDE else SKILL_MEMORY
+
+_BLANK_STYLE_TEMPLATE = """# Style profile
+
+_The studio reads this before generating every concept. Fill it in during onboarding._
+
+## Channel / niche
+(What is your channel about? Who is the audience?)
+
+## Persona on camera
+(How do you usually appear? Expressions, energy, wardrobe.)
+
+## Visual signature
+- Colors:
+- Fonts / text style:
+- Composition habits:
+- Background style:
+
+## Do's
+-
+
+## Don'ts
+-
+"""
+
+
+def _seed_blank_memory():
+    """Fresh workspace (STUDIO_MEMORY set): copy SHARED methodology + reference
+    thumbnails, but leave faces + style blank so the user gets onboarding. Never
+    copies the owner's personal face photos / style / likes."""
+    if not _MEM_OVERRIDE:
+        return
+    marker = MEMORY / ".seeded"
+    if marker.exists():
+        return
+    import shutil
+    src = SKILL_MEMORY
+    MEMORY.mkdir(parents=True, exist_ok=True)
+    for rel in ("winning-style.md", "example-concepts.md", "README.md"):
+        sp = src / rel
+        if sp.exists():
+            shutil.copy2(sp, MEMORY / rel)
+    rt = src / "inspiration" / "reference-thumbnails"
+    if rt.exists():
+        shutil.copytree(rt, MEMORY / "inspiration" / "reference-thumbnails", dirs_exist_ok=True)
+    for d in ("profile/face", "preferences/likes", "preferences/dislikes", "inspiration", "projects"):
+        (MEMORY / d).mkdir(parents=True, exist_ok=True)
+
+    def _w(rel, text):
+        f = MEMORY / rel
+        if not f.exists():
+            f.write_text(text, encoding="utf-8")
+
+    _w("profile/style-profile.md", _BLANK_STYLE_TEMPLATE)
+    _w("profile/face/INDEX.md",
+       "# Face reference photos\n\n| file | angle | expression | notes |\n|------|-------|------------|-------|\n")
+    _w("preferences/likes/INDEX.md",
+       "# Liked thumbnails\n\n| file | source | why it works |\n|------|--------|--------------|\n")
+    _w("preferences/dislikes/INDEX.md",
+       "# Disliked thumbnails\n\n| file | source | why to avoid |\n|------|--------|--------------|\n")
+    _w("inspiration/INDEX.md",
+       "# Inspiration library\n\n| file | creator | technique to borrow |\n|------|---------|---------------------|\n")
+    marker.write_text("seeded", encoding="utf-8")
+
+
+_seed_blank_memory()
 SCRIPTS = SKILL_DIR / "scripts"
 CONFIG_PATH = STUDIO_DIR / "config.json"
 STATIC_DIR = STUDIO_DIR / "static"
@@ -271,6 +338,7 @@ def api_status():
         "model": concept_model(),
         "memory_path": str(MEMORY),
         "faces": len(face_refs()),
+        "needs_onboarding": len(face_refs()) == 0,
     })
 
 
