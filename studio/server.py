@@ -22,7 +22,7 @@ import mimetypes
 import subprocess
 import traceback
 
-from flask import Flask, request, jsonify, send_file, Response, abort
+from flask import Flask, request, jsonify, send_file, Response, abort, g
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -32,7 +32,34 @@ PROJECT_ROOT = STUDIO_DIR.parent
 SKILL_DIR = PROJECT_ROOT / ".claude" / "skills" / "youtube-thumbnail-generator"
 SKILL_MEMORY = SKILL_DIR / "memory"
 _MEM_OVERRIDE = os.environ.get("STUDIO_MEMORY")
-MEMORY = pathlib.Path(_MEM_OVERRIDE).resolve() if _MEM_OVERRIDE else SKILL_MEMORY
+_DEFAULT_MEMORY = pathlib.Path(_MEM_OVERRIDE).resolve() if _MEM_OVERRIDE else SKILL_MEMORY
+
+import contextvars as _ctxv
+_cur_mem = _ctxv.ContextVar("cur_mem", default=None)
+
+
+class _MemoryProxy:
+    """Resolves to the current request's per-user memory dir, or the default."""
+    def _b(self):
+        v = _cur_mem.get()
+        return v if v is not None else _DEFAULT_MEMORY
+    def __truediv__(self, o):
+        return self._b() / o
+    def resolve(self):
+        return self._b().resolve()
+    def mkdir(self, *a, **k):
+        return self._b().mkdir(*a, **k)
+    def exists(self):
+        return self._b().exists()
+    def __fspath__(self):
+        return str(self._b())
+    def __str__(self):
+        return str(self._b())
+    def __repr__(self):
+        return "MEMORY(%s)" % self._b()
+
+
+MEMORY = _MemoryProxy()
 
 _BLANK_STYLE_TEMPLATE = """# Style profile
 
@@ -108,19 +135,124 @@ sys.path.insert(0, str(SCRIPTS))
 
 
 # ---------------------------------------------------------------------------
+# Multi-user (Supabase auth). Active only when SUPABASE_URL + anon key are set;
+# otherwise the app stays single-tenant exactly as before.
+# ---------------------------------------------------------------------------
+import urllib.request as _urlreq
+import hashlib as _hashlib
+import time as _time
+import shutil as _shutil
+
+SUPABASE_URL = (os.environ.get("SUPABASE_URL") or "").rstrip("/")
+SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY") or ""
+WORKSPACES = pathlib.Path(os.environ.get("STUDIO_WORKSPACES") or (STUDIO_DIR / "_workspaces"))
+MULTIUSER = bool(SUPABASE_URL and SUPABASE_ANON_KEY)
+
+_tok_cache = {}
+
+
+def verify_supabase_token(token):
+    """Return the Supabase user id for a valid access token, else None (cached 60s)."""
+    if not token or not MULTIUSER:
+        return None
+    h = _hashlib.sha256(token.encode()).hexdigest()
+    now = _time.time()
+    c = _tok_cache.get(h)
+    if c and c[1] > now:
+        return c[0]
+    try:
+        req = _urlreq.Request(SUPABASE_URL + "/auth/v1/user",
+                              headers={"Authorization": "Bearer " + token, "apikey": SUPABASE_ANON_KEY})
+        with _urlreq.urlopen(req, timeout=8) as r:
+            d = json.loads(r.read().decode("utf-8"))
+        uid = d.get("id")
+        if uid:
+            _tok_cache[h] = (uid, now + 60)
+            return uid
+    except Exception:
+        return None
+    return None
+
+
+def seed_workspace(base):
+    """Seed a fresh per-user workspace with shared methodology + reference thumbnails,
+    blank faces/style (so the user gets onboarding). No owner data."""
+    base = pathlib.Path(base)
+    marker = base / ".seeded"
+    if marker.exists():
+        return
+    src = SKILL_MEMORY
+    base.mkdir(parents=True, exist_ok=True)
+    for rel in ("winning-style.md", "example-concepts.md", "README.md"):
+        sp = src / rel
+        if sp.exists():
+            _shutil.copy2(sp, base / rel)
+    rt = src / "inspiration" / "reference-thumbnails"
+    if rt.exists():
+        _shutil.copytree(rt, base / "inspiration" / "reference-thumbnails", dirs_exist_ok=True)
+    for d in ("profile/face", "preferences/likes", "preferences/dislikes", "inspiration", "projects"):
+        (base / d).mkdir(parents=True, exist_ok=True)
+
+    def _w(rel, text):
+        f = base / rel
+        if not f.exists():
+            f.write_text(text, encoding="utf-8")
+
+    _w("profile/style-profile.md", _BLANK_STYLE_TEMPLATE)
+    _w("profile/face/INDEX.md", """# Face reference photos
+
+| file | angle | expression | notes |
+|------|-------|------------|-------|
+""")
+    _w("preferences/likes/INDEX.md", """# Liked thumbnails
+
+| file | source | why it works |
+|------|--------|--------------|
+""")
+    _w("preferences/dislikes/INDEX.md", """# Disliked thumbnails
+
+| file | source | why to avoid |
+|------|--------|--------------|
+""")
+    _w("inspiration/INDEX.md", """# Inspiration library
+
+| file | creator | technique to borrow |
+|------|---------|---------------------|
+""")
+    marker.write_text("seeded", encoding="utf-8")
+
+
+def set_workspace(user_id):
+    base = (WORKSPACES / user_id / "memory")
+    seed_workspace(base)
+    _cur_mem.set(base)
+    return base
+
+
+# ---------------------------------------------------------------------------
 # Config / keys  — env first, then studio/config.json (written by Settings UI)
 # ---------------------------------------------------------------------------
+def _config_path():
+    v = _cur_mem.get()
+    if v is not None:
+        return pathlib.Path(v).parent / "config.json"
+    return CONFIG_PATH
+
+
 def load_config() -> dict:
-    if CONFIG_PATH.exists():
+    cp = _config_path()
+    if cp.exists():
         try:
-            return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+            return json.loads(cp.read_text(encoding="utf-8"))
         except Exception:
             return {}
     return {}
 
 
 def save_config(cfg: dict) -> None:
-    CONFIG_PATH.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+    cp = _config_path()
+    cp.parent.mkdir(parents=True, exist_ok=True)
+    cp.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
 
 
 def apply_config_to_env() -> None:
@@ -149,12 +281,16 @@ def concept_model() -> str:
 
 
 def req_fal_key():
-    """fal key for this request: per-user header first, then server env/config (local)."""
+    """fal key for this request. In multi-user mode it is ONLY the user's own key
+    (header or their workspace config) -- never a shared/global key."""
     if _has_request():
         h = request.headers.get("X-Fal-Key")
         if h:
             return h.strip()
-    return os.environ.get("FAL_KEY") or load_config().get("FAL_KEY")
+    k = load_config().get("FAL_KEY")
+    if k:
+        return k
+    return None if MULTIUSER else os.environ.get("FAL_KEY")
 
 
 def req_anthropic_key():
@@ -162,7 +298,10 @@ def req_anthropic_key():
         h = request.headers.get("X-Anthropic-Key")
         if h:
             return h.strip()
-    return os.environ.get("ANTHROPIC_API_KEY") or load_config().get("ANTHROPIC_API_KEY")
+    k = load_config().get("ANTHROPIC_API_KEY")
+    if k:
+        return k
+    return None if MULTIUSER else os.environ.get("ANTHROPIC_API_KEY")
 
 
 def clean_slug(slug: str) -> str:
@@ -282,10 +421,24 @@ app = Flask(__name__, static_folder=None)
 
 @app.before_request
 def _auth_gate():
-    """Optional shared-password gate for public deploys (set APP_PASSWORD).
-
-    No password configured -> fully open (local use). Configured -> HTTP Basic.
-    """
+    """Multi-user mode (SUPABASE configured): require a valid Supabase session and
+    scope the request to that user's workspace. Otherwise: optional shared password."""
+    if MULTIUSER:
+        p = request.path
+        if p == "/" or p.startswith("/static/") or p == "/api/auth-config" or p == "/favicon.ico":
+            return
+        token = None
+        ah = request.headers.get("Authorization", "")
+        if ah.startswith("Bearer "):
+            token = ah[7:]
+        if not token:
+            token = request.args.get("token")  # img/download tags can't set headers
+        uid = verify_supabase_token(token)
+        if not uid:
+            return jsonify({"error": "Please sign in."}), 401
+        g.user_id = uid
+        set_workspace(uid)
+        return
     pw = os.environ.get("APP_PASSWORD")
     if not pw:
         return
@@ -293,6 +446,13 @@ def _auth_gate():
     if not auth or not auth.password or auth.password != pw:
         return Response("Authentication required.", 401,
                         {"WWW-Authenticate": 'Basic realm="Thumbnail Studio"'})
+
+
+@app.get("/api/auth-config")
+def api_auth_config():
+    return jsonify({"multiuser": MULTIUSER,
+                    "supabase_url": SUPABASE_URL or None,
+                    "anon_key": SUPABASE_ANON_KEY or None})
 
 
 @app.after_request
@@ -333,12 +493,13 @@ def api_file():
 def api_status():
     cfg = load_config()
     return jsonify({
-        "fal_key": bool(os.environ.get("FAL_KEY") or cfg.get("FAL_KEY")),
-        "anthropic_key": bool(os.environ.get("ANTHROPIC_API_KEY") or cfg.get("ANTHROPIC_API_KEY")),
+        "fal_key": bool(req_fal_key()),
+        "anthropic_key": bool(req_anthropic_key()),
         "model": concept_model(),
         "memory_path": str(MEMORY),
         "faces": len(face_refs()),
         "needs_onboarding": len(face_refs()) == 0,
+        "multiuser": MULTIUSER,
     })
 
 
@@ -1067,7 +1228,13 @@ def _gen_worker(jid, slug, concept_ids, num, extra_ref=None, name_prefix="v",
                 job_log(jid, f"Concept {idx}/{total}: copying style of {pathlib.Path(style_ref).name}")
 
             job_log(jid, f"Concept {idx}/{total}: generating {num} variation(s)…")
-            proc = subprocess.Popen(cmd, cwd=str(SKILL_DIR), env=os.environ.copy(),
+            _env = os.environ.copy()
+            if MULTIUSER:
+                _env.pop("FAL_KEY", None)
+            _fk = req_fal_key()
+            if _fk:
+                _env["FAL_KEY"] = _fk
+            proc = subprocess.Popen(cmd, cwd=str(SKILL_DIR), env=_env,
                                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                     text=True, encoding="utf-8", errors="replace", bufsize=1)
             tail = []
@@ -1104,18 +1271,31 @@ def _gen_worker(jid, slug, concept_ids, num, extra_ref=None, name_prefix="v",
         job_done(jid, error=f"{e}\n{traceback.format_exc()}")
 
 
+def _spawn(target, *args):
+    """Start a worker thread that inherits the current request's per-user workspace."""
+    base = _cur_mem.get()
+
+    def _run():
+        if base is not None:
+            _cur_mem.set(base)
+        target(*args)
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    return t
+
+
 @app.post("/api/generate")
 def api_generate():
-    if not (os.environ.get("FAL_KEY") or load_config().get("FAL_KEY")):
-        return jsonify({"error": "No FAL_KEY. Add it in Settings (or set FAL_KEY)."}), 400
+    if not req_fal_key():
+        return jsonify({"error": "Add your fal.ai key in Settings/onboarding first."}), 400
     data = request.get_json(force=True)
     slug = data["slug"]
     concept_ids = data["concept_ids"]
     num = int(data.get("num") or 3)
     extra_ref = data.get("extra_ref")  # memory-relative path of an image to use as a ref
     jid = new_job("generate")
-    t = threading.Thread(target=_gen_worker, args=(jid, slug, concept_ids, num, extra_ref), daemon=True)
-    t.start()
+    t = _spawn(_gen_worker, jid, slug, concept_ids, num, extra_ref)
     return jsonify({"job_id": jid})
 
 
@@ -1127,8 +1307,8 @@ def api_edit():
     The source image is used as the style/layout anchor so the edit keeps that
     exact thumbnail and changes only what the instruction asks.
     """
-    if not (os.environ.get("FAL_KEY") or load_config().get("FAL_KEY")):
-        return jsonify({"error": "No FAL_KEY. Add it in Settings (or set FAL_KEY)."}), 400
+    if not req_fal_key():
+        return jsonify({"error": "Add your fal.ai key in Settings/onboarding first."}), 400
     data = request.get_json(force=True)
     slug = data["slug"]
     cid = data["concept_id"]
@@ -1138,16 +1318,16 @@ def api_edit():
         return jsonify({"error": "Describe the edit you want."}), 400
     num = int(data.get("num") or 2)
     jid = new_job("edit")
-    t = threading.Thread(target=_gen_worker,
-                         args=(jid, slug, [cid], num, rel, "edit", instruction),
-                         daemon=True)
-    t.start()
+    t = _spawn(_gen_worker, jid, slug, [cid], num, rel, "edit", instruction)
     return jsonify({"job_id": jid})
 
 
 def _upscale_worker(jid, rel_path, factor):
     try:
         import lib
+        _fk = req_fal_key()
+        if _fk:
+            os.environ["FAL_KEY"] = _fk
         src = safe_under(MEMORY, MEMORY / rel_path)
         # final dir = project's final folder
         # rel like projects/<slug>/generated/<cid>/v2.jpg
@@ -1185,14 +1365,13 @@ def _upscale_worker(jid, rel_path, factor):
 
 @app.post("/api/upscale")
 def api_upscale():
-    if not (os.environ.get("FAL_KEY") or load_config().get("FAL_KEY")):
-        return jsonify({"error": "No FAL_KEY. Add it in Settings (or set FAL_KEY)."}), 400
+    if not req_fal_key():
+        return jsonify({"error": "Add your fal.ai key in Settings/onboarding first."}), 400
     data = request.get_json(force=True)
     rel_path = data["path"]
     factor = float(data.get("factor") or 2)
     jid = new_job("upscale")
-    t = threading.Thread(target=_upscale_worker, args=(jid, rel_path, factor), daemon=True)
-    t.start()
+    t = _spawn(_upscale_worker, jid, rel_path, factor)
     return jsonify({"job_id": jid})
 
 

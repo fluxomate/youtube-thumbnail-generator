@@ -400,3 +400,23 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 .onb-drop:hover{border-color:var(--orange);color:#fff;background:rgba(255,115,0,.06)}
 .onb-foot{display:flex;justify-content:space-between;align-items:center;margin-top:26px;gap:12px}
 .onb-foot-r{display:flex;gap:10px}
+
+/* ===== Auth screen ===== */
+.auth-screen{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:24px;
+  background:radial-gradient(1100px 700px at 50% -15%,rgba(255,115,0,.18),transparent 60%),#08080a}
+.auth-card{width:420px;max-width:100%;background:linear-gradient(180deg,#15151b,#0f0f13);border:1px solid var(--line2);
+  border-radius:22px;padding:34px 30px;box-shadow:0 40px 110px -30px #000;animation:slideup .35s}
+.auth-brand{display:flex;align-items:center;gap:12px;margin-bottom:22px}
+.auth-brand .m{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;font-size:22px;font-weight:900;color:#fff;
+  background:linear-gradient(135deg,var(--orange),#ff4d00);box-shadow:0 10px 26px -8px var(--orange-glow)}
+.auth-brand b{font-size:16px;font-weight:800}.auth-brand span{display:block;font-size:12px;color:var(--muted)}
+.auth-card h2{font-size:22px;font-weight:800;letter-spacing:-.4px;margin-bottom:5px}
+.auth-card .sub{color:var(--muted);font-size:13.5px;margin-bottom:22px}
+.auth-card form{display:flex;flex-direction:column;gap:13px}
+.auth-card label{font-size:12.5px;font-weight:600;color:#cfcfd6;margin-bottom:5px;display:block}
+.auth-err{color:var(--red);font-size:12.5px;min-height:16px}
+.auth-foot{margin-top:18px;font-size:13px;color:var(--muted);text-align:center}
+.auth-foot a{color:var(--orange);font-weight:600;cursor:pointer;text-decoration:none}
+.auth-card .primary-btn{justify-content:center;width:100%;padding:14px}
+.logout-btn{border:1px solid var(--line2);border-radius:9px;padding:7px 11px;font-size:12px;font-weight:600;color:var(--muted);transition:.15s;width:100%;margin-top:8px}
+.logout-btn:hover{border-color:var(--red);color:var(--red)}

@@ -6,7 +6,7 @@ const api = (p, opts) => fetch(p, opts).then(async r => {
   if (!r.ok) throw new Error(data.error || `Error ${r.status}`);
   return data;
 });
-const fileUrl = p => `/api/file?path=${encodeURIComponent(p)}`;
+const fileUrl = p => `/api/file?path=${encodeURIComponent(p)}${(window.__AUTH && window.__AUTH.token) ? ('&token=' + window.__AUTH.token) : ''}`;
 
 const state = {
   view: 'studio',

@@ -35,6 +35,7 @@
 
     <div class="rail-foot">
       <div id="keyStatus" class="key-status"></div>
+      <button id="logoutBtn" class="logout-btn hidden" onclick="window.__AUTH&&window.__AUTH.logout()">Log out</button>
     </div>
   </aside>
 
@@ -281,6 +282,7 @@
   </div>
 </div>
 
+<script src="/static/auth.js"></script>
 <script src="/static/app.js"></script>
 <!-- Onboarding -->
 <div id="onboarding" class="onb hidden">
@@ -324,6 +326,22 @@
         <button id="onbNext" class="primary-btn">Continue</button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- Auth screen (multi-user) -->
+<div id="authScreen" class="auth-screen hidden">
+  <div class="auth-card">
+    <div class="auth-brand"><div class="m">✳</div><div><b>Thumbnail Studio</b><span>AI thumbnails with your face &amp; taste</span></div></div>
+    <h2 id="authTitle">Welcome back</h2>
+    <p class="sub">Sign in to your studio. Your faces, styles and thumbnails stay private to your account.</p>
+    <form id="authForm">
+      <div><label>Email</label><input id="authEmail" type="email" required placeholder="you@email.com" autocomplete="email" /></div>
+      <div><label>Password</label><input id="authPass" type="password" required minlength="6" placeholder="••••••••" autocomplete="current-password" /></div>
+      <div class="auth-err" id="authErr"></div>
+      <button id="authSubmit" type="submit" class="primary-btn">Log in</button>
+    </form>
+    <div class="auth-foot"><span id="authToggleText">New here?</span> <a id="authToggle">Create one</a></div>
   </div>
 </div>
 
