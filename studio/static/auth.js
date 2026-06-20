@@ -64,7 +64,7 @@
     const form = document.getElementById('authForm');
     if (!form) return;
     renderMode();
-    document.getElementById('authToggle').onclick = (e) => { e.preventDefault(); mode = mode === 'login' ? 'signup' : 'login'; renderMode(); };
+    const _tg = document.getElementById('authToggle'); if (_tg) _tg.onclick = (e) => { e.preventDefault(); mode = mode === 'login' ? 'signup' : 'login'; renderMode(); };
     form.onsubmit = async (e) => {
       e.preventDefault();
       const email = document.getElementById('authEmail').value.trim();
