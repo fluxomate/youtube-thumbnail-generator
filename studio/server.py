@@ -142,9 +142,11 @@ import urllib.request as _urlreq
 import hashlib as _hashlib
 import time as _time
 import shutil as _shutil
+import sbstorage
 
 SUPABASE_URL = (os.environ.get("SUPABASE_URL") or "").rstrip("/")
 SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY") or ""
+SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY") or ""
 WORKSPACES = pathlib.Path(os.environ.get("STUDIO_WORKSPACES") or (STUDIO_DIR / "_workspaces"))
 MULTIUSER = bool(SUPABASE_URL and SUPABASE_ANON_KEY)
 
@@ -224,7 +226,12 @@ def seed_workspace(base):
 
 def set_workspace(user_id):
     base = (WORKSPACES / user_id / "memory")
-    seed_workspace(base)
+    if not base.exists() and sbstorage.enabled():
+        try:
+            sbstorage.download_all(user_id, base)   # restore from Supabase on a fresh container/volume
+        except Exception:
+            pass
+    seed_workspace(base)   # no-op if already seeded/restored
     _cur_mem.set(base)
     return base
 
@@ -437,6 +444,7 @@ def _auth_gate():
         if not uid:
             return jsonify({"error": "Please sign in."}), 401
         g.user_id = uid
+        g._req_start = _time.time()
         set_workspace(uid)
         return
     pw = os.environ.get("APP_PASSWORD")
@@ -458,6 +466,13 @@ def api_auth_config():
 @app.after_request
 def no_cache(resp):
     resp.headers["Cache-Control"] = "no-store"
+    try:
+        if MULTIUSER and sbstorage.enabled() and request.method in ("POST", "PUT", "DELETE") and getattr(g, "user_id", None):
+            base = _cur_mem.get()
+            if base is not None:
+                sbstorage.sync_up_changed(base, g.user_id, getattr(g, "_req_start", 0))
+    except Exception:
+        pass
     return resp
 
 
@@ -644,6 +659,11 @@ def api_memory_delete():
         side = p.with_suffix(p.suffix + ".json")
         if side.exists():
             side.unlink()
+    if MULTIUSER and sbstorage.enabled() and getattr(g, "user_id", None):
+        try:
+            sbstorage.delete_prefix(g.user_id + "/" + rel)
+        except Exception:
+            pass
     return jsonify({"ok": True})
 
 
@@ -707,6 +727,11 @@ def api_project_delete():
     if pd.exists():
         import shutil
         shutil.rmtree(pd)
+    if MULTIUSER and sbstorage.enabled() and getattr(g, "user_id", None):
+        try:
+            sbstorage.delete_prefix(g.user_id + "/projects/" + slug)
+        except Exception:
+            pass
     return jsonify({"ok": True})
 
 
@@ -1175,6 +1200,14 @@ def _resolve_style_ref(c, extra_ref, pd):
     return None
 
 
+def _sb_sync_worker(base, since):
+    try:
+        if MULTIUSER and sbstorage.enabled() and base is not None:
+            sbstorage.sync_up_changed(base, pathlib.Path(base).parent.name, since)
+    except Exception:
+        pass
+
+
 def _gen_worker(jid, slug, concept_ids, num, extra_ref=None, name_prefix="v",
                 edit_instruction=None):
     """Generate by driving the skill's own generate.py (nano-banana-2 + style-ref).
@@ -1182,6 +1215,8 @@ def _gen_worker(jid, slug, concept_ids, num, extra_ref=None, name_prefix="v",
     Shelling out to the skill script means the studio always uses the skill's
     current generation logic instead of a private copy.
     """
+    _w_start = _time.time()
+    _w_base = _cur_mem.get()
     try:
         pd = project_dir(slug)
         concepts = json.loads(read_text(pd / "concepts.json") or "[]")
@@ -1263,6 +1298,7 @@ def _gen_worker(jid, slug, concept_ids, num, extra_ref=None, name_prefix="v",
         (pd / "concepts.json").write_text(json.dumps(concepts, indent=2), encoding="utf-8")
         brief = json.loads(read_text(pd / "brief.json") or "{}")
         _write_concepts_md(pd, brief, concepts)
+        _sb_sync_worker(_w_base, _w_start)
         if any_ok:
             job_done(jid)
         else:
@@ -1323,6 +1359,8 @@ def api_edit():
 
 
 def _upscale_worker(jid, rel_path, factor):
+    _w_start = _time.time()
+    _w_base = _cur_mem.get()
     try:
         import lib
         _fk = req_fal_key()
@@ -1356,6 +1394,7 @@ def _upscale_worker(jid, rel_path, factor):
         job_add_result(jid, {"path": rel_to_memory(dest), "file": dest.name,
                              "width": img.get("width"), "height": img.get("height")})
         job_log(jid, "Done.", pct=100)
+        _sb_sync_worker(_w_base, _w_start)
         job_done(jid)
     except SystemExit as e:
         job_done(jid, error=str(e))
