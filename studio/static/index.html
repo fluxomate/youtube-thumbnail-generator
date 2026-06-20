@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Thumbnail Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+<div id="app">
+  <!-- ░░ Sidebar ░░ -->
+  <aside class="rail">
+    <div class="brand">
+      <div class="brand-mark">✳</div>
+      <div class="brand-text">
+        <strong>Thumbnail</strong>
+        <span>Studio</span>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <button class="nav-item active" data-view="studio"><span class="ic">◐</span> Studio</button>
+      <button class="nav-item" data-view="memory"><span class="ic">❖</span> Memory</button>
+      <button class="nav-item" data-view="settings"><span class="ic">⚙</span> Settings</button>
+    </nav>
+
+    <div class="rail-section">
+      <div class="rail-label">Projects</div>
+      <div id="projectList" class="project-list"></div>
+      <button id="newProjectBtn" class="ghost-btn">+ New video</button>
+    </div>
+
+    <div class="rail-foot">
+      <div id="keyStatus" class="key-status"></div>
+    </div>
+  </aside>
+
+  <!-- ░░ Main ░░ -->
+  <main class="main">
+    <!-- ===== STUDIO ===== -->
+    <section class="view active" id="view-studio">
+      <header class="view-head">
+        <div>
+          <h1 id="studioTitle">New thumbnail</h1>
+          <p class="sub" id="studioSub">Paste a transcript, get concepts in your style, turn them into thumbnails.</p>
+        </div>
+        <div class="steps">
+          <span class="step on" data-step="1">1 · Intake</span>
+          <span class="step" data-step="2">2 · Concepts</span>
+          <span class="step" data-step="3">3 · Thumbnails</span>
+        </div>
+      </header>
+
+      <!-- Step 1 — Intake -->
+      <div class="stage" id="stage-intake">
+        <!-- mode chooser -->
+        <div class="mode-choose" id="modeChoose">
+          <button type="button" class="mode-card active" data-mode="scratch">
+            <span class="mc-ic">✦</span>
+            <span class="mc-body"><b>From scratch</b><small>Fresh, distinct concepts drawn from your saved memory &amp; brand.</small></span>
+          </button>
+          <button type="button" class="mode-card" data-mode="inspiration">
+            <span class="mc-ic">❖</span>
+            <span class="mc-body"><b>From inspiration</b><small>Recreate one reference thumbnail — your face, brand &amp; video.</small></span>
+          </button>
+        </div>
+
+        <!-- inspiration anchor block (hero in inspiration mode) -->
+        <div class="field inspo-block" id="inspoBlock">
+          <label id="inspoLabel">Inspiration for this video <span class="opt">(optional — paste or drop images)</span></label>
+          <textarea id="inInspo" rows="2" placeholder="Notes, creators or styles to borrow from…"></textarea>
+          <div id="inspoDrop" class="inspo-drop" tabindex="0">
+            <div class="inspo-empty" id="inspoEmpty">
+              <span class="inspo-ic">⊕</span>
+              <span>Drop, <b>paste (Ctrl+V)</b>, or <button type="button" id="inspoPick" class="inline-link">browse</button> screenshots &amp; thumbnails</span>
+            </div>
+            <div id="inspoStrip" class="inspo-strip"></div>
+            <input type="file" id="inspoFile" accept="image/*" multiple hidden />
+          </div>
+        </div>
+
+        <div class="intake-grid">
+          <div class="field span2">
+            <label>Video title <span class="opt">(optional)</span></label>
+            <input id="inTitle" type="text" placeholder="e.g. The Client Retention Playbook" />
+          </div>
+          <div class="field span2">
+            <label>Transcript</label>
+            <textarea id="inTranscript" rows="7" placeholder="Paste the full video transcript here…"></textarea>
+          </div>
+          <div class="field span2">
+            <label>Context / hook / vibe <span class="opt">(optional)</span></label>
+            <textarea id="inContext" rows="4" placeholder="What's the video about? The hook, the payoff, the feeling you want."></textarea>
+          </div>
+        </div>
+        <div class="intake-bar">
+          <div class="count-pick">
+            <label>Concepts</label>
+            <input id="inCount" type="range" min="3" max="8" value="5" />
+            <output id="inCountOut">5</output>
+          </div>
+          <button id="genConceptsBtn" class="primary-btn big">
+            <span class="btn-label">Generate concepts</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 2 — Concepts -->
+      <div class="stage hidden" id="stage-concepts">
+        <div class="stage-head">
+          <h2>Concepts <span id="conceptCount" class="pill"></span></h2>
+          <div class="stage-actions">
+            <button id="moreConceptsBtn" class="ghost-btn">+ More concepts</button>
+            <button id="backToIntake" class="ghost-btn">Edit intake</button>
+          </div>
+        </div>
+        <div id="conceptStatus" class="concept-status hidden">
+          <div class="lab-orb"><span></span><span></span><span></span></div>
+          <div class="lab-text">
+            <strong id="labPhase">Reading your style profile…</strong>
+            <span id="labSub">Composing concepts in your style</span>
+          </div>
+          <div class="lab-bars"><i></i><i></i><i></i><i></i><i></i></div>
+        </div>
+        <div id="conceptGrid" class="concept-grid"></div>
+        <div class="selectbar" id="selectbar">
+          <div class="selectbar-info"><span id="selSummary">Select concepts to generate</span></div>
+          <button id="generateBtn" class="primary-btn" disabled>Generate thumbnails</button>
+        </div>
+      </div>
+
+      <!-- Step 3 — Thumbnails -->
+      <div class="stage hidden" id="stage-thumbs">
+        <div class="stage-head">
+          <h2>Thumbnails</h2>
+          <div class="stage-actions">
+            <button id="backToConcepts" class="ghost-btn">← Concepts</button>
+          </div>
+        </div>
+        <div id="thumbGroups" class="thumb-groups"></div>
+      </div>
+    </section>
+
+    <!-- ===== MEMORY ===== -->
+    <section class="view" id="view-memory">
+      <header class="view-head">
+        <div>
+          <h1>Memory</h1>
+          <p class="sub">What the studio knows about you and your taste. Everything here shapes every concept.</p>
+        </div>
+      </header>
+
+      <div class="mem-block">
+        <div class="mem-head"><h2>Style profile</h2><button id="saveStyleBtn" class="primary-btn small">Save</button></div>
+        <textarea id="styleProfile" class="style-editor" rows="16"></textarea>
+      </div>
+
+      <div class="mem-block">
+        <div class="mem-head"><h2>Your face</h2><label class="upload-chip">+ Add photo<input type="file" data-kind="faces" accept="image/*" hidden></label></div>
+        <p class="mem-hint">Reference photos that keep the generated face looking like you. More angles = better likeness.</p>
+        <div id="memFaces" class="mem-gallery"></div>
+      </div>
+
+      <div class="mem-cols">
+        <div class="mem-block">
+          <div class="mem-head"><h2>Likes</h2><label class="upload-chip">+ Add<input type="file" data-kind="likes" accept="image/*" hidden></label></div>
+          <div id="memLikes" class="mem-gallery small"></div>
+        </div>
+        <div class="mem-block">
+          <div class="mem-head"><h2>Dislikes</h2><label class="upload-chip">+ Add<input type="file" data-kind="dislikes" accept="image/*" hidden></label></div>
+          <div id="memDislikes" class="mem-gallery small"></div>
+        </div>
+      </div>
+
+      <div class="mem-block">
+        <div class="mem-head"><h2>Inspiration</h2><label class="upload-chip">+ Add<input type="file" data-kind="inspiration" accept="image/*" hidden></label></div>
+        <p class="mem-hint">Thumbnails from other creators worth borrowing techniques from.</p>
+        <div id="memInspo" class="mem-gallery small"></div>
+      </div>
+    </section>
+
+    <!-- ===== SETTINGS ===== -->
+    <section class="view" id="view-settings">
+      <header class="view-head">
+        <div>
+          <h1>Settings</h1>
+          <p class="sub">Keys are stored locally in <code>studio/config.json</code> and never leave your machine except to call the services.</p>
+        </div>
+      </header>
+
+      <div class="settings-card">
+        <div class="field">
+          <label>Anthropic API key <span class="opt">— writes the concepts</span></label>
+          <input id="setAnthropic" type="password" placeholder="sk-ant-…" />
+          <small>Get one at console.anthropic.com</small>
+        </div>
+        <div class="field">
+          <label>fal.ai key <span class="opt">— generates &amp; upscales images</span></label>
+          <input id="setFal" type="password" placeholder="••••••••" />
+          <small>Get one at fal.ai/dashboard/keys</small>
+        </div>
+        <div class="field">
+          <label>Concept model</label>
+          <select id="setModel">
+            <option value="claude-sonnet-4-6">Claude Sonnet 4.6 — fast, sharp (recommended)</option>
+            <option value="claude-opus-4-8">Claude Opus 4.8 — most capable</option>
+            <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 — cheapest</option>
+          </select>
+        </div>
+        <button id="saveSettingsBtn" class="primary-btn">Save settings</button>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- Lightbox -->
+<div id="lightbox" class="lightbox hidden">
+  <button class="lb-close">✕</button>
+  <img id="lbImg" src="" alt="" />
+  <div class="lb-actions" id="lbActions"></div>
+</div>
+
+<!-- Job console -->
+<div id="jobDock" class="job-dock hidden">
+  <div class="job-head"><span class="job-spin"></span><strong id="jobTitle">Working…</strong><span id="jobPct"></span></div>
+  <div class="job-bar"><div id="jobFill" class="job-fill"></div></div>
+  <div id="jobLog" class="job-log"></div>
+</div>
+
+<!-- Toasts -->
+<div id="toasts" class="toasts"></div>
+
+<!-- Edit concept modal -->
+<div id="conceptModal" class="modal hidden">
+  <div class="modal-card">
+    <h3>Edit concept</h3>
+    <div class="field"><label>Name</label><input id="ecName" type="text"></div>
+    <div class="modal-row">
+      <div class="field"><label>Style</label><select id="ecStyle">
+        <option value="cinematic-dark">Cinematic (dark)</option>
+        <option value="income-proof">Income proof (bright)</option>
+        <option value="storyboard">Storyboard</option>
+        <option value="shocked-laptop">Shocked laptop</option>
+        <option value="graphic-dark">Graphic (dark)</option>
+        <option value="graphic-light">Graphic (light)</option>
+      </select></div>
+      <div class="field"><label>Big text</label><input id="ecBig" type="text"></div>
+    </div>
+    <div class="field"><label>Copy reference <span class="opt">(filename, optional)</span></label><input id="ecStyleRef" type="text" placeholder="e.g. A5-faceless-channel-income-chart.png"></div>
+    <div class="field"><label>Emotion / pose</label><input id="ecEmotion" type="text"></div>
+    <div class="field"><label>Scene</label><textarea id="ecScene" rows="2"></textarea></div>
+    <div class="field"><label>Image prompt</label><textarea id="ecPrompt" rows="5"></textarea></div>
+    <div class="modal-actions">
+      <button id="ecCancel" class="ghost-btn">Cancel</button>
+      <button id="ecSave" class="primary-btn">Save changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit thumbnail modal -->
+<div id="editModal" class="modal hidden">
+  <div class="modal-card">
+    <h3>Suggest an edit</h3>
+    <p class="sub" style="margin:-6px 0 12px">Regenerates this one thumbnail, keeping everything the same except what you ask to change.</p>
+    <img id="etPreview" class="et-preview" src="" alt="" />
+    <div class="field"><label>What should change?</label>
+      <textarea id="etInstruction" rows="3" placeholder="e.g. make the headline orange, remove the laptop, bigger shocked expression, darker background…"></textarea>
+    </div>
+    <div class="count-pick" style="margin:4px 0 2px">
+      <label>Versions</label>
+      <input id="etCount" type="range" min="1" max="4" value="2" />
+      <output id="etCountOut">2</output>
+    </div>
+    <div class="modal-actions">
+      <button id="etCancel" class="ghost-btn">Cancel</button>
+      <button id="etApply" class="primary-btn">Apply edit</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

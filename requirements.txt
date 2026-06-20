@@ -1,0 +1,4 @@
+flask>=3.0,<4
+anthropic>=0.40
+fal-client>=0.5
+gunicorn>=21

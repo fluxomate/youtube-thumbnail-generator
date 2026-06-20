@@ -1,0 +1,28 @@
+# ===== secrets — NEVER commit =====
+studio/config.json
+.env
+**/.env
+*.key
+
+# ===== Railway deploy files (kept local, excluded from GitHub) =====
+/Procfile
+/.railwayignore
+/railway.json
+/railway.toml
+
+# ===== local build / cache / logs =====
+**/__pycache__/
+*.pyc
+*.pyo
+*.log
+studio/studio_server.log
+.claude/launch.json
+
+# ===== bulk generated images (regenerable; keeps the repo small) =====
+.claude/skills/youtube-thumbnail-generator/memory/projects/
+
+# ===== OS / editor cruft =====
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
