@@ -4,12 +4,6 @@ studio/config.json
 **/.env
 *.key
 
-# ===== Railway deploy files (kept local, excluded from GitHub) =====
-/Procfile
-/.railwayignore
-/railway.json
-/railway.toml
-
 # ===== local build / cache / logs =====
 **/__pycache__/
 *.pyc
