@@ -1032,6 +1032,23 @@ def api_onboard_research():
     return jsonify({"profile": prof})
 
 
+@app.get("/api/inspirations")
+def api_inspirations():
+    """Inspiration images available to pick: shared defaults (reference-thumbnails)
+    + ones the user has saved to their own inspiration library."""
+    base = MEMORY / "inspiration"
+    items = []
+    if base.exists():
+        for img in sorted(base.rglob("*")):
+            if img.is_file() and img.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}:
+                items.append({
+                    "path": rel_to_memory(img),
+                    "name": img.name,
+                    "kind": "default" if "reference-thumbnails" in img.parts else "mine",
+                })
+    return jsonify({"items": items})
+
+
 @app.post("/api/concepts")
 def api_concepts():
     data = request.get_json(force=True)
@@ -1040,14 +1057,15 @@ def api_concepts():
     context = (data.get("context") or "").strip()
     extra_inspo = (data.get("inspiration") or "").strip()
     inspo_images = data.get("inspiration_images") or []  # [{name, media_type, data(base64)}]
+    inspo_refs = data.get("inspiration_refs") or []       # memory-relative paths the user picked
     mode = (data.get("mode") or "scratch").strip()        # 'scratch' | 'inspiration'
     n = int(data.get("n") or 5)
     avoid = data.get("avoid") or []  # names of existing concepts to not repeat
 
     if mode != "inspiration" and not (transcript or context):
         return jsonify({"error": "Paste a transcript or some video context first."}), 400
-    if mode == "inspiration" and not inspo_images:
-        return jsonify({"error": "Add the reference image you want to base concepts on."}), 400
+    if mode == "inspiration" and not inspo_images and not inspo_refs:
+        return jsonify({"error": "Add or pick a reference image to base concepts on."}), 400
 
     try:
         import anthropic
@@ -1084,6 +1102,19 @@ def api_concepts():
                 "type": "image",
                 "source": {"type": "base64", "media_type": mt, "data": b64},
             })
+    import base64 as _b64lib
+    for relpath in inspo_refs:
+        try:
+            p = safe_under(MEMORY, MEMORY / relpath)
+            if p.exists() and p.is_file():
+                mt = (mimetypes.guess_type(str(p))[0] or "image/png").lower()
+                if mt == "image/jpg":
+                    mt = "image/jpeg"
+                if mt in allowed_media:
+                    image_blocks.append({"type": "image", "source": {"type": "base64",
+                        "media_type": mt, "data": _b64lib.b64encode(p.read_bytes()).decode()}})
+        except Exception:
+            pass
     if mode == "inspiration":
         # Anchor the whole batch to the attached reference(s): recreate, don't diverge.
         user_parts.append(

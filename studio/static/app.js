@@ -16,6 +16,7 @@ const state = {
   brief: {},
   feedback: {},      // { <image rel path>: {verdict:'like'|'dislike', note} }
   inspoImages: [],   // [{name, media_type, data(base64), dataUrl}]
+  inspoRefs: [],     // memory paths picked from the library
   intakeMode: 'scratch',  // 'scratch' | 'inspiration'
 };
 
@@ -100,7 +101,8 @@ async function openProject(slug) {
 
 function newProject() {
   state.slug = null; state.brief = {}; state.concepts = []; state.selected.clear();
-  state.inspoImages = []; renderInspoStrip(); setMode('scratch');
+  state.inspoImages = []; state.inspoRefs = []; renderInspoStrip(); setMode('scratch');
+  inspoLibLoaded = false; if (inspoLibGrid) { inspoLibGrid.innerHTML = ''; inspoLibGrid.classList.add('hidden'); } updateInspoLibCount();
   $('#inTitle').value = ''; $('#inTranscript').value = ''; $('#inContext').value = ''; $('#inInspo').value = '';
   $('#studioTitle').textContent = 'New thumbnail';
   $('#studioSub').textContent = 'Paste a transcript, get concepts in your style, turn them into thumbnails.';
@@ -159,6 +161,39 @@ document.addEventListener('paste', e => {
   addInspoFiles(imgs.map(i => i.getAsFile()).filter(Boolean));
   toast(`Added ${imgs.length} inspiration image${imgs.length > 1 ? 's' : ''}.`, 'ok');
 });
+
+/* ---------- Inspiration library picker (defaults + your own) ---------- */
+let inspoLibLoaded = false;
+const inspoLibToggle = $('#inspoLibToggle');
+const inspoLibGrid = $('#inspoLibGrid');
+function updateInspoLibCount() {
+  if (!inspoLibToggle) return;
+  inspoLibToggle.textContent = state.inspoRefs.length ? `📚 Library — ${state.inspoRefs.length} selected` : '📚 Or pick from your library';
+}
+async function loadInspoLibrary() {
+  try {
+    const { items } = await api('/api/inspirations');
+    inspoLibGrid.innerHTML = '';
+    if (!items.length) { inspoLibGrid.innerHTML = '<div class="inspo-lib-empty">Nothing saved yet — add inspiration in the Memory tab.</div>'; return; }
+    items.sort((x, y) => (x.kind === y.kind ? 0 : (x.kind === 'default' ? -1 : 1)));
+    items.forEach(it => {
+      const d = document.createElement('div');
+      d.className = 'inspo-lib-item' + (state.inspoRefs.includes(it.path) ? ' sel' : '');
+      d.innerHTML = `<img src="${fileUrl(it.path)}" loading="lazy" /><span class="lib-badge">${it.kind === 'default' ? 'Starter' : 'Yours'}</span><span class="lib-check">✓</span>`;
+      d.onclick = () => {
+        const i = state.inspoRefs.indexOf(it.path);
+        if (i >= 0) state.inspoRefs.splice(i, 1); else state.inspoRefs.push(it.path);
+        d.classList.toggle('sel');
+        updateInspoLibCount();
+      };
+      inspoLibGrid.appendChild(d);
+    });
+  } catch (e) { inspoLibGrid.innerHTML = '<div class="inspo-lib-empty">Couldn\'t load your library.</div>'; }
+}
+if (inspoLibToggle) inspoLibToggle.onclick = async () => {
+  inspoLibGrid.classList.toggle('hidden');
+  if (!inspoLibLoaded) { await loadInspoLibrary(); inspoLibLoaded = true; }
+};
 
 /* ---------- Intake mode (scratch vs inspiration) ---------- */
 function setMode(mode) {
@@ -222,8 +257,8 @@ async function generateConcepts(append = false) {
   const transcript = $('#inTranscript').value.trim();
   const context = $('#inContext').value.trim();
   const mode = state.intakeMode;
-  if (mode === 'inspiration' && !state.inspoImages.length) {
-    toast('Add the reference image you want to base concepts on.', 'err');
+  if (mode === 'inspiration' && !state.inspoImages.length && !state.inspoRefs.length) {
+    toast('Add or pick a reference image to base concepts on.', 'err');
     return;
   }
   if (!transcript && !context && mode !== 'inspiration') { toast('Paste a transcript or some context first.', 'err'); return; }
@@ -239,6 +274,7 @@ async function generateConcepts(append = false) {
       transcript, context, mode,
       inspiration: $('#inInspo').value.trim(),
       inspiration_images: state.inspoImages.map(({ name, media_type, data }) => ({ name, media_type, data })),
+      inspiration_refs: state.inspoRefs,
       n,
       slug: state.slug || undefined,
       append,

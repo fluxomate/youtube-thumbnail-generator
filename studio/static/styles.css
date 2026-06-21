@@ -461,3 +461,17 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 .onb-research-row .primary-btn.small{white-space:nowrap}
 .onb-research-status{font-size:12px;color:var(--muted);margin-top:9px;min-height:14px;line-height:1.4}
 .onb-drop.dragover{border-color:var(--orange);background:rgba(255,115,0,.08)}
+
+/* ===== Inspiration library picker ===== */
+.inspo-library{margin-top:8px}
+.inspo-lib-toggle{font-size:12.5px;font-weight:600;color:var(--muted);border:1px solid var(--line2);border-radius:9px;padding:8px 13px;transition:.15s}
+.inspo-lib-toggle:hover{border-color:var(--orange);color:#fff}
+.inspo-lib-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(98px,1fr));gap:9px;margin-top:12px}
+.inspo-lib-item{position:relative;border-radius:9px;overflow:hidden;border:2px solid transparent;cursor:pointer;aspect-ratio:16/9;background:var(--bg2);transition:.14s}
+.inspo-lib-item img{width:100%;height:100%;object-fit:cover;display:block}
+.inspo-lib-item:hover{border-color:var(--line2)}
+.inspo-lib-item.sel{border-color:var(--orange);box-shadow:0 0 0 2px var(--orange)}
+.inspo-lib-item .lib-badge{position:absolute;top:4px;left:4px;font-size:9px;font-weight:700;padding:2px 5px;border-radius:5px;background:rgba(0,0,0,.6);color:#fff;text-transform:uppercase;letter-spacing:.04em}
+.inspo-lib-item .lib-check{position:absolute;top:4px;right:4px;width:18px;height:18px;border-radius:5px;background:var(--orange);color:#fff;font-size:11px;display:none;place-items:center}
+.inspo-lib-item.sel .lib-check{display:grid}
+.inspo-lib-empty{font-size:12px;color:var(--muted2);padding:8px 2px}
