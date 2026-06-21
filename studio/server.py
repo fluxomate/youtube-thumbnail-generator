@@ -669,7 +669,11 @@ def api_memory_delete():
 
 # ---- projects ---------------------------------------------------------------
 def project_dir(slug: str) -> pathlib.Path:
-    return MEMORY / "projects" / slug
+    s = (slug or "").strip().strip("/\\")
+    if not s or s.startswith(".") or ".." in s or "/" in s or "\\" in s:
+        from flask import abort
+        abort(400, "invalid project id")
+    return MEMORY / "projects" / s
 
 
 def load_project(slug: str) -> dict:
@@ -1178,8 +1182,9 @@ def _resolve_style_ref(c, extra_ref, pd):
     """
     # 1. explicit ref (memory-relative)
     if extra_ref:
+        base = MEMORY.resolve()
         p = (MEMORY / extra_ref).resolve()
-        if p.exists():
+        if (p == base or str(p).startswith(str(base) + os.sep)) and p.exists():
             return str(p)
     # 2. pasted inspiration anchor
     insp = list_images(pd / "inspiration")
