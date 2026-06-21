@@ -675,21 +675,53 @@ function _initOnboarding() {
   function show() { overlay.classList.remove('hidden'); step = 1; render(); }
   function hide() { overlay.classList.add('hidden'); }
 
-  // face upload preview
+  // face upload — click, multi-select, drag & drop (add as many as you like)
+  let onbStyleNotes = '';
   const faceFile = document.getElementById('onbFaceFile');
-  document.getElementById('onbFaceDrop').onclick = () => faceFile.click();
-  faceFile.onchange = () => {
-    [...faceFile.files].filter(f => f.type.startsWith('image/')).forEach(f => onbFaces.push(f));
-    faceFile.value = '';
+  const faceDrop = document.getElementById('onbFaceDrop');
+  function renderFaces() {
     const strip = document.getElementById('onbFaceStrip');
     strip.innerHTML = '';
     onbFaces.forEach((f, i) => {
       const d = document.createElement('div');
       d.className = 'inspo-thumb';
       d.innerHTML = `<img src="${URL.createObjectURL(f)}" /><button type="button" class="ix">✕</button>`;
-      d.querySelector('.ix').onclick = () => { onbFaces.splice(i, 1); faceFile.onchange(); };
+      d.querySelector('.ix').onclick = () => { onbFaces.splice(i, 1); renderFaces(); };
       strip.appendChild(d);
     });
+  }
+  function addFaceFiles(files) {
+    [...files].filter(f => f.type.startsWith('image/')).forEach(f => onbFaces.push(f));
+    renderFaces();
+  }
+  faceDrop.onclick = () => faceFile.click();
+  faceFile.onchange = () => { addFaceFiles(faceFile.files); faceFile.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => faceDrop.addEventListener(ev, e => { e.preventDefault(); faceDrop.classList.add('dragover'); }));
+  ['dragleave', 'drop'].forEach(ev => faceDrop.addEventListener(ev, e => { e.preventDefault(); faceDrop.classList.remove('dragover'); }));
+  faceDrop.addEventListener('drop', e => { if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) addFaceFiles(e.dataTransfer.files); });
+
+  // auto-research the channel -> fill the profile fields
+  const researchBtn = document.getElementById('onbResearchBtn');
+  if (researchBtn) researchBtn.onclick = async () => {
+    const channel = document.getElementById('onbChannel').value.trim();
+    if (!channel) { toast('Enter your channel URL or @handle.', 'err'); return; }
+    const ant = document.getElementById('onbAnt').value.trim();
+    if (!ant) { toast('Paste your Anthropic key in step 1 first.', 'err'); return; }
+    const st = document.getElementById('onbResearchStatus');
+    researchBtn.disabled = true; const lbl = researchBtn.textContent; researchBtn.textContent = 'Researching…';
+    st.textContent = 'Looking up your channel — this can take ~20s…';
+    try {
+      const r = await api('/api/onboard/research', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Anthropic-Key': ant }, body: JSON.stringify({ channel }) });
+      const p = r.profile || {};
+      if (p.channel_name) document.getElementById('onbName').value = p.channel_name;
+      if (p.niche) document.getElementById('onbNiche').value = p.niche;
+      if (p.persona) document.getElementById('onbPersona').value = p.persona;
+      if (p.brand_color) document.getElementById('onbColor').value = p.brand_color;
+      onbStyleNotes = p.style_notes || '';
+      st.textContent = '✓ Filled in from your channel — tweak anything below.';
+    } catch (e) {
+      st.textContent = ''; toast(e.message || 'Couldn\'t research that — fill it in manually.', 'err');
+    } finally { researchBtn.disabled = false; researchBtn.textContent = lbl; }
   };
 
   document.getElementById('onbSkip').onclick = hide;
@@ -713,7 +745,7 @@ function _initOnboarding() {
       const persona = document.getElementById('onbPersona').value.trim();
       const color = document.getElementById('onbColor').value.trim() || '#FF7300';
       if (niche || persona || name) {
-        const text = `# Style profile\n\n## Channel / niche\n${name ? name + ' — ' : ''}${niche}\n\n## Persona on camera\n${persona}\n\n## Visual signature\n- Colors: ${color} (brand)\n- Fonts / text style: bold condensed sans, <=4 words\n- Composition habits: face on one third, hook text on another\n- Background style: clean designed background, cinematic premium\n\n## Do's\n- Strong, real facial expression with eye contact\n- One concrete number or curiosity gap\n\n## Don'ts\n- No clutter or more than ~4 words of text\n- No weak / neutral expression\n`;
+        const text = `# Style profile\n\n## Channel / niche\n${name ? name + ' — ' : ''}${niche}\n\n## Persona on camera\n${persona}\n${onbStyleNotes ? '\n## Thumbnail style (researched)\n' + onbStyleNotes + '\n' : ''}\n## Visual signature\n- Colors: ${color} (brand)\n- Fonts / text style: bold condensed sans, <=4 words\n- Composition habits: face on one third, hook text on another\n- Background style: clean designed background, cinematic premium\n\n## Do's\n- Strong, real facial expression with eye contact\n- One concrete number or curiosity gap\n\n## Don'ts\n- No clutter or more than ~4 words of text\n- No weak / neutral expression\n`;
         await api('/api/memory/style', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
       }
       for (const f of onbFaces) {

@@ -305,6 +305,14 @@
     <div class="onb-step hidden" data-onb="2">
       <h3>2 &middot; About your channel</h3>
       <p class="onb-hint">This shapes every concept. You can refine it anytime in Memory.</p>
+      <div class="onb-research">
+        <label>Auto-fill from your channel <span class="opt">(optional — uses AI)</span></label>
+        <div class="onb-research-row">
+          <input id="onbChannel" type="text" placeholder="YouTube channel URL or @handle" />
+          <button type="button" id="onbResearchBtn" class="primary-btn small">✨ Research</button>
+        </div>
+        <div class="onb-research-status" id="onbResearchStatus"></div>
+      </div>
       <div class="field"><label>Channel name</label><input id="onbName" type="text" placeholder="e.g. Your Channel" /></div>
       <div class="field"><label>Niche &amp; audience</label><textarea id="onbNiche" rows="2" placeholder="e.g. AI automation for agency owners"></textarea></div>
       <div class="field"><label>On-camera persona</label><textarea id="onbPersona" rows="2" placeholder="e.g. young man, dark beard, energetic, often in a bright hoodie"></textarea></div>
@@ -313,9 +321,9 @@
 
     <div class="onb-step hidden" data-onb="3">
       <h3>3 &middot; Add your face</h3>
-      <p class="onb-hint">3–5 clear photos (front + 3/4 angle) keep the generated face looking like you.</p>
-      <label class="onb-drop" id="onbFaceDrop"><span>+ Upload face photos</span>
-        <input id="onbFaceFile" type="file" accept="image/*" multiple hidden /></label>
+      <p class="onb-hint">Add several clear photos (front + a few angles) — the more you add, the better the likeness.</p>
+      <div class="onb-drop" id="onbFaceDrop"><span>+ Upload face photos — add as many as you like</span></div>
+      <input id="onbFaceFile" type="file" accept="image/*" multiple hidden />
       <div id="onbFaceStrip" class="inspo-strip"></div>
     </div>
 

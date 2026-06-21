@@ -960,6 +960,78 @@ OUTPUT per concept via emit_concepts:
 Produce genuinely distinct angles unless told to adapt one reference. Return ONLY via emit_concepts."""
 
 
+RESEARCH_TOOL = {
+    "name": "emit_profile",
+    "description": "Return the researched channel profile used to seed thumbnail style.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "channel_name": {"type": "string"},
+            "niche": {"type": "string", "description": "niche + target audience, one concise line"},
+            "persona": {"type": "string", "description": "the creator's on-camera appearance & persona for thumbnails"},
+            "brand_color": {"type": "string", "description": "hex like #FF7300"},
+            "style_notes": {"type": "string", "description": "2-4 short notes on their thumbnail style/devices"},
+        },
+        "required": ["niche", "persona"],
+    },
+}
+
+
+@app.post("/api/onboard/research")
+def api_onboard_research():
+    """Research a creator's channel (web search via Claude) and return a profile to
+    auto-fill onboarding. Uses the user's Anthropic key (header or saved)."""
+    key = req_anthropic_key()
+    if not key:
+        return jsonify({"error": "Add your Anthropic key first."}), 400
+    data = request.get_json(force=True)
+    channel = (data.get("channel") or "").strip()
+    if not channel:
+        return jsonify({"error": "Enter your channel URL or @handle."}), 400
+    try:
+        import anthropic
+    except ImportError:
+        return jsonify({"error": "The anthropic package isn't installed."}), 500
+
+    client = anthropic.Anthropic(api_key=key)
+    prompt = (
+        "Research this YouTube channel: " + channel + "\n\n"
+        "Find what the channel is about, the creator's on-camera appearance and persona, their niche "
+        "and target audience, and the brand/accent colours used in their thumbnails. Use web search to "
+        "look them up. Then call emit_profile with your findings. If you cannot find the channel, infer "
+        "sensible values from the handle/name."
+    )
+
+    def run(use_web):
+        kw = {"model": concept_model(), "max_tokens": 2500, "tools": [RESEARCH_TOOL],
+              "messages": [{"role": "user", "content": prompt}]}
+        if use_web:
+            kw["tools"] = [{"type": "web_search_20250305", "name": "web_search", "max_uses": 5}, RESEARCH_TOOL]
+        else:
+            kw["tool_choice"] = {"type": "tool", "name": "emit_profile"}
+        return client.messages.create(**kw)
+
+    def extract(msg):
+        for b in msg.content:
+            if getattr(b, "type", None) == "tool_use" and getattr(b, "name", None) == "emit_profile":
+                return b.input
+        return None
+
+    prof = None
+    try:
+        prof = extract(run(True))          # with web search
+    except Exception:
+        prof = None
+    if not prof:
+        try:
+            prof = extract(run(False))     # fallback: knowledge-only, forced emit
+        except Exception as e:
+            return jsonify({"error": "Research failed: " + str(e)}), 500
+    if not prof:
+        return jsonify({"error": "Couldn't research that channel — fill it in manually."}), 200
+    return jsonify({"profile": prof})
+
+
 @app.post("/api/concepts")
 def api_concepts():
     data = request.get_json(force=True)
