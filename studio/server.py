@@ -1316,6 +1316,24 @@ def _sb_sync_worker(base, since):
         pass
 
 
+def _friendly_error(text):
+    """Map raw fal/httpx errors to a clear, actionable message for the UI."""
+    t = (text or "").lower()
+    if "exhausted balance" in t or "top up your balance" in t:
+        return "Your fal.ai account is out of credit — top up at fal.ai/dashboard/billing, then try again."
+    if "user is locked" in t:
+        return "Your fal.ai account is locked (usually billing). Check fal.ai/dashboard/billing."
+    if ("403" in t or "forbidden" in t or "401" in t or "unauthorized" in t) and ("fal" in t or "storage/auth" in t):
+        return "fal.ai rejected your key. Check the key and that billing is enabled at fal.ai/dashboard/keys & /billing."
+    if "fal_key is not set" in t or "no fal_key" in t:
+        return "Add your fal.ai key in Settings first."
+    if "anthropic" in t and ("401" in t or "authentication" in t or "invalid x-api-key" in t):
+        return "Anthropic rejected your key. Re-check it in Settings."
+    if "rate limit" in t or "429" in t:
+        return "Rate limited by the API — wait a moment and try again."
+    return None
+
+
 def _gen_worker(jid, slug, concept_ids, num, extra_ref=None, name_prefix="v",
                 edit_instruction=None):
     """Generate by driving the skill's own generate.py (nano-banana-2 + style-ref).
@@ -1399,7 +1417,8 @@ def _gen_worker(jid, slug, concept_ids, num, extra_ref=None, name_prefix="v",
                 job_log(jid, f"Concept {idx}/{total}: done — {len(saved)} image(s)", pct=int(idx / total * 100))
                 c["status"] = "generated"
             else:
-                msg = "\n".join(tail[-4:]) or "generation failed"
+                raw = "\n".join(tail) or "generation failed"
+                msg = _friendly_error(raw) or "\n".join(tail[-2:]) or "generation failed"
                 errors.append(f"{cid}: {msg}")
                 job_log(jid, f"Concept {idx}/{total}: failed — {msg}")
 
@@ -1412,7 +1431,7 @@ def _gen_worker(jid, slug, concept_ids, num, extra_ref=None, name_prefix="v",
         else:
             job_done(jid, error="; ".join(errors) or "No images were generated.")
     except Exception as e:
-        job_done(jid, error=f"{e}\n{traceback.format_exc()}")
+        job_done(jid, error=_friendly_error(str(e)) or str(e))
 
 
 def _spawn(target, *args):
@@ -1507,7 +1526,7 @@ def _upscale_worker(jid, rel_path, factor):
     except SystemExit as e:
         job_done(jid, error=str(e))
     except Exception as e:
-        job_done(jid, error=f"{e}\n{traceback.format_exc()}")
+        job_done(jid, error=_friendly_error(str(e)) or str(e))
 
 
 @app.post("/api/upscale")
